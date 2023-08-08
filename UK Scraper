@@ -1,0 +1,102 @@
+'''
+UK Site
+=======
+Scope and Open points:
+
+30 day rolling - what does this mean?
+1. Listing title
+2. Timestamp of listing
+3. Bid Price
+4. Final selling price
+[O] ScrapingMore price possibility??
+Scraping multiple pages - check for its possibility with BeautifulSoup
+''' 
+
+from bs4 import BeautifulSoup as bs
+import requests
+import re
+from random import randint
+from time import sleep
+from html.parser import HTMLParser
+
+def get_url(page_no):
+  URL = "https://auctions.synetiq.co.uk/auction/items/?x=0&type=1&tab=1&list=1&section_id=&make=&transmission=0&fuel=2&seller=&category=&location=0&sort=&time=0&distance=0&options=&layout=r50&search=&fp=0&page={page_no}".format(page_no = page_no)
+  return URL
+
+def getHTML(url):
+    # request for HTML document of given url
+    response = requests.get(url)     
+    # response will be provided in JSON format
+    return response.text
+
+first_url = get_url(1)
+soup = bs(getHTML(first_url), 'html.parser')
+
+def no_of_pages():
+  url = get_url(1)
+  soup = bs(getHTML(url), 'html.parser')
+  no_of_pages = soup.find(class_='list_extra2 pagination_text').get_text()
+  return re.sub('\s+', '', no_of_pages)[-2:]
+
+def get_elements(URL):
+  #req = requests.get(URL) 
+  elements = soup.find_all(class_='row vehicle_list')
+  return elements
+
+def get_id(elements, i):
+  id = elements[i].find(class_='list-group-text-item').get_text()
+  return re.sub('\s+', '', id)
+
+def get_title(elements, i):
+  return elements[i].find(class_='list_title').find('h2').get_text()
+
+def get_price(elements, i):
+  price_data = elements[i].find(class_='row').find(class_= 'price_info').get_text()
+  return re.sub('\s+', '', price_data)
+
+def get_closing_date(elements, i):
+  closing_date = elements[i].find(class_= 'closing_date').get_text()
+  return re.sub('\s+', '', closing_date)
+
+elements = soup.find_all(class_='row vehicle_list')   
+
+database = {}
+try:
+  n = int(no_of_pages())
+except Exception as e:
+  n = 1
+print(n)
+
+def check_duplicate_listings(database, id, price):
+  if database[id][1] == price:
+    return True
+  else:
+    return False
+
+database = {}
+def update_database(n):
+  for page in range(1,n + 1):
+    print("Page:", page)
+    url_page = get_url(page)
+    present_page_elements = get_elements(url_page)
+    print("length ", len(present_page_elements))
+    
+    for i in range(0,len(present_page_elements)):
+      id = get_id(present_page_elements, i)
+      price = get_price(present_page_elements, i)
+      title = get_title(present_page_elements, i)
+      date_published  = get_closing_date(present_page_elements, i)
+      print(id, price, title, date_published)
+    
+      if id not in database:
+        database[id] = [price, title, date_published]
+      elif not check_duplicate_listings(database, id, price ):
+        special_key = str(id) + title[:11] 
+        database[special_key] = [price, title, date_published]
+      else:
+        print("Already exists in database")
+        
+      sleep(randint(2,10))
+
+update_database(n)
+print(len(database))
